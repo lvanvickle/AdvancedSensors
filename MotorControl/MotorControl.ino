@@ -60,12 +60,12 @@ long getDistance() {
 
 // Rotate the servo to face forward
 void rotateServoFront() {
-  sensorServo.write(75);  // Adjust for your setup
+  sensorServo.write(0);  // Adjust for your setup
   facingFront = true;
 }
 
 // Rotate the servo to face backward
 void rotateServoBack() {
-  sensorServo.write(150);  // Adjust for your setup
+  sensorServo.write(255);  // Adjust for your setup
   facingFront = false;
 }
