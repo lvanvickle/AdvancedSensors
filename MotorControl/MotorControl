@@ -5,85 +5,67 @@ int trigPin = 9;
 int echoPin = 10;
 int servoPin = 6;
 
-// Create Servo object
 Servo sensorServo;
-
-// Constants for the speed of sound
 const double SPEED_OF_SOUND = 0.034;
 
-// Variables to hold distance readings
-long frontDistance = 0;
-long backDistance = 0;
+long distance = 0;  // Holds the current distance reading
+bool facingFront = true;  // Track whether the sensor is facing forward
 
 void setup() {
-  // Begin serial communication
   Serial.begin(9600);
 
-  // Set up the ultrasonic sensor pins
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
 
-  // Attach the servo to the servo pin
   sensorServo.attach(servoPin);
-  
-  // Move the servo to face forward initially
-  sensorServo.write(0);  // 0 degrees (facing forward)
+  rotateServoFront();  // Start with the sensor facing forward
 }
 
 void loop() {
-  // Step 1: Take distance reading for the front
-  frontDistance = getDistance();
-  
-  // Step 2: Rotate servo to back and take rear distance reading
-  rotateServoBack();
-  delay(500);  // Wait for the servo to move
-  backDistance = getDistance();
+  // Get distance from the current direction
+  distance = getDistance();
 
-  // Step 3: Rotate servo back to front
-  rotateServoFront();
-  delay(500);  // Wait for the servo to move
+  // If sensor is facing forward and obstacle is detected
+  if (facingFront && distance < 20) {
+    rotateServoBack();  // Turn to face the back
+    delay(500);  // Allow time for the servo to rotate
+    distance = getDistance();  // Get the distance from the back
+    Serial.print(0);  // Send 0 for back
+  } else if (!facingFront) {
+    rotateServoFront();  // Turn to face the front again
+    delay(500);  // Allow time for the servo to rotate
+    distance = getDistance();  // Get the distance from the front
+    Serial.print(1);  // Send 1 for front
+  }
 
-  // Step 4: Send both distance readings to the Raspberry Pi
-  sendDistanceData(frontDistance, backDistance);
-
-  // Delay before taking another reading
-  delay(1000);  // Adjust delay as needed
+  // Send boolean (1 or 0) along with distance
+  Serial.print(",");
+  Serial.println(distance);
+  delay(500);  // Adjust delay as needed
 }
 
 // Function to get distance using the ultrasonic sensor
 long getDistance() {
-  // Clear trigPin
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
-
-  // Trigger pulse
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
 
-  // Read echoPin and calculate distance
   long duration = pulseIn(echoPin, HIGH);
   long distance = duration * SPEED_OF_SOUND / 2;
   
-  return distance;  // Return distance in cm
+  return distance;
 }
 
 // Rotate the servo to face forward
 void rotateServoFront() {
-  sensorServo.write(0);  // 0 degrees for front
-  delay(500);  // Allow time for the servo to move
+  sensorServo.write(75);  // Adjust for your setup
+  facingFront = true;
 }
 
 // Rotate the servo to face backward
 void rotateServoBack() {
-  sensorServo.write(180);  // 180 degrees for back
-  delay(500);  // Allow time for the servo to move
-}
-
-// Function to send both distance readings to the Raspberry Pi
-void sendDistanceData(long front, long back) {
-  // Send front and back distance as comma-separated values
-  Serial.print(front);
-  Serial.print(",");
-  Serial.println(back);
+  sensorServo.write(150);  // Adjust for your setup
+  facingFront = false;
 }
