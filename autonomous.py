@@ -43,12 +43,18 @@ def read_distance():
 
 # This function handles the robot's autonomous movement behavior
 # It will keep moving and reacting to obstacles as long as the mode is set to 'autonomous'
+# Autonomous movement logic with boolean for front/back
 def start_autonomy(get_mode):
     try:
         last_distance = None  # Store the last known distance
         while get_mode() == "autonomous":
-            # Read the data from the Arduino (boolean + distance)
+            # Read the data from the Arduino
             is_front, distance = read_distance()
+
+            # Check if distance is None, skip the loop iteration if no valid data is available
+            if distance is None:
+                print("No valid distance data received. Skipping this loop.")
+                continue  # Skip this iteration if distance is None
 
             # If the sensor is facing forward
             if is_front:
@@ -70,11 +76,38 @@ def start_autonomy(get_mode):
                     start_time = time.time()
                     while time.time() - start_time < 1:  # Back up for 1 second
                         move_backward(0.5)
-                        if distance < 40:  # If obstacle detected behind, stop backing up
+
+                        # Re-check distance and ensure it is not None
+                        if distance is None:
+                            print("No valid distance data received while backing up. Stopping.")
+                            break
+
+                        if distance < 40:
                             print(f"Obstacle detected behind at {distance} cm. Stopping backup.")
                             break  # Stop backing up if an obstacle is detected behind
                     stop_motors()
                     last_distance = None  # Reset the last distance
+
+                    # Decide to turn left or right after backing up
+                    if random.choice([True, False]):  # Randomly choose left or right
+                        print("Turning left to avoid obstacle.")
+                        start_time = time.time()
+                        while time.time() - start_time < 1:  # Turn left for 1 second
+                            turn_left(0.5)
+                            is_front, distance = read_distance()  # Check distance while turning
+                            if distance is not None and distance > 20:
+                                print(f"Turned left, new front distance: {distance} cm")
+                                break  # Stop turning if the front is clear
+                    else:
+                        print("Turning right to avoid obstacle.")
+                        start_time = time.time()
+                        while time.time() - start_time < 1:  # Turn right for 1 second
+                            turn_right(0.5)
+                            is_front, distance = read_distance()  # Check distance while turning
+                            if distance is not None and distance > 20:
+                                print(f"Turned right, new front distance: {distance} cm")
+                                break  # Stop turning if the front is clear
+                    stop_motors()  # Stop motors after turning
 
             # If no obstacles detected, move forward
             if last_distance is None:
