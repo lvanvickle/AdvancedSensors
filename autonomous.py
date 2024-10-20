@@ -23,22 +23,21 @@ def setup_serial():
         # If there's an error in setting up the connection, print the error message
         print(f"Error: {e}")
 
-# This function reads the distance data sent from the Arduino
-# It returns the distance values in centimeters (e.g. 45,60)
-def read_distances():
+# This function reads the boolean and distance data sent from the Arduino
+# It returns the boolean (1 for front, 0 for back) and the distance value in centimeters
+def read_distance():
     # Check if the serial connection is active and if there's any data to read
     if ser and ser.in_waiting > 0:
         try:
             # Read the data from the serial connection, decode it to a string, and remove extra spaces/newlines
             data = ser.readline().decode().strip()
-            # Split the comma-separated values into a list of strings and convert them to floats
+            # Split the comma-separated boolean and distance
             sensor_data = data.split(',')
-            front_distance = float(sensor_data[0])  # Front ultrasonic sensor
-            back_distance = float(sensor_data[1])   # Back ultrasonic sensor
-            # Return both distances as floating-point values
-            return front_distance, back_distance
+            is_front = bool(int(sensor_data[0]))  # 1 for front, 0 for back
+            distance = float(sensor_data[1])  # Distance in cm
+            return is_front, distance  # Return both the boolean and distance as a tuple
         except (ValueError, IndexError):
-            # If there is an issue with parsing the data (e.g., missing or malformed values), return None
+            # If there is an issue with parsing the data, return None
             return None, None
     return None, None  # Return None if no data is available
 
@@ -46,72 +45,42 @@ def read_distances():
 # It will keep moving and reacting to obstacles as long as the mode is set to 'autonomous'
 def start_autonomy(get_mode):
     try:
-        # Loop while the robot is in autonomous mode
+        last_distance = None  # Store the last known distance
         while get_mode() == "autonomous":
-            # Get the front and back distances from the Arduino
-            front_distance, back_distance = read_distances()
-    
-            # If an obstacle is detected in front (closer than 20 cm), stop and prepare to back up
-            if front_distance is not None and front_distance < 20:
-                print(f"Obstacle detected at {front_distance} cm. Stopping and backing up.")
-                stop_motors()  # Stop all motor activity
-    
-                # Check if there is enough clearance in the back (at least 40 cm)
-                while back_distance is not None and back_distance < 40:
-                    print(f"Obstacle behind at {back_distance} cm.")  # Print the obstacle distance behind
-                    # Re-check front and back distances to update the values
-                    front_distance, back_distance = read_distances()
+            # Read the data from the Arduino (boolean + distance)
+            is_front, distance = read_distance()
 
-                # Start backing up once the rear clearance is at least 40 cm
-                print("Rear clearance sufficient, starting to back up.")
-                start_time = time.time()  # Record the start time for backing up
-                while time.time() - start_time < 1:  # Back up for 1 second
-                    move_backward(0.5)  # Move backward at 50% speed
-                    _, back_distance = read_distances()  # Continuously check back distance
-                    # If an obstacle is detected behind (less than 40 cm), stop backing up
-                    if back_distance is not None and back_distance < 40:
-                        print(f"Obstacle detected behind at {back_distance} cm. Stopping backup.")
-                        break  # Stop the backup process
-                stop_motors()  # Stop motors after backing up
-    
-                # After backing up, randomly decide whether to turn left or right
-                if random.choice([True, False]):  # Randomly choose True (turn left) or False (turn right)
-                    print("Turning left to avoid obstacle.")
-                    start_time = time.time()  # Record the start time for turning left
-                    while time.time() - start_time < 1:  # Turn left for 1 second
-                        turn_left(0.5)  # Turn left at 50% speed
-                        # Continuously check the front and back distances while turning
-                        front_distance, back_distance = read_distances()
-                        # If the front is clear (more than 20 cm), stop turning
-                        if front_distance is not None and front_distance > 20:
-                            break  # Exit the turning loop
-                else:
-                    print("Turning right to avoid obstacle.")
-                    start_time = time.time()  # Record the start time for turning right
-                    while time.time() - start_time < 1:  # Turn right for 1 second
-                        turn_right(0.5)  # Turn right at 50% speed
-                        # Continuously check the front and back distances while turning
-                        front_distance, back_distance = read_distances()
-                        # If the front is clear (more than 20 cm), stop turning
-                        if front_distance is not None and front_distance > 20:
-                            break  # Exit the turning loop
-                stop_motors()  # Stop motors after the turn is complete
-    
-            # If there are no close obstacles, move forward
-            elif front_distance is not None:
-                print(f"Closest obstacle {front_distance} cm away. Moving forward.")
-                move_forward(1)  # Move forward at full speed (100%)
-    
-                # Move for 0.5 seconds, continuously checking for obstacles
-                start_time = time.time()
-                while time.time() - start_time < 0.5:  # Move for 0.5 seconds
-                    front_distance, _ = read_distances()  # Check if there's a new obstacle in the front
-                    # If an obstacle is detected (less than 20 cm), stop moving forward
-                    if front_distance is not None and front_distance < 20:
-                        break  # Exit the forward movement loop
-                stop_motors()  # Stop the motors after moving forward for 0.5 seconds
+            # If the sensor is facing forward
+            if is_front:
+                print(f"Front distance: {distance} cm")
 
-    # If a keyboard interrupt (Ctrl + C) is detected, stop the motors and exit safely
+                # If obstacle detected in front, prepare to back up
+                if distance < 20:
+                    print("Obstacle detected in front. Preparing to back up.")
+                    stop_motors()  # Stop and prepare to back up
+                    last_distance = distance  # Store the last front distance
+
+            # If the sensor is facing backward
+            elif not is_front:
+                print(f"Back distance: {distance} cm")
+
+                # If the last distance was less than 20 cm, use the back sensor data to back up
+                if last_distance is not None and last_distance < 20:
+                    print("Backing up based on back sensor data.")
+                    start_time = time.time()
+                    while time.time() - start_time < 1:  # Back up for 1 second
+                        move_backward(0.5)
+                        if distance < 40:  # If obstacle detected behind, stop backing up
+                            print(f"Obstacle detected behind at {distance} cm. Stopping backup.")
+                            break  # Stop backing up if an obstacle is detected behind
+                    stop_motors()
+                    last_distance = None  # Reset the last distance
+
+            # If no obstacles detected, move forward
+            if last_distance is None:
+                move_forward(1)
+                time.sleep(0.5)  # Check for obstacles periodically
+
     except KeyboardInterrupt:
         stop_motors()
         print("Autonomy interrupted")
