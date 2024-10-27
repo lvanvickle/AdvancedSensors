@@ -16,7 +16,9 @@ void setup() {
 void loop() {
   // Send processed sensor data as 1 or 0 for each sensor
   Serial.print(getSensorData(leftIRSensor));
+  Serial.print(",");
   Serial.print(getSensorData(centerIRSensor));
+  Serial.print(",");
   Serial.print(getSensorData(rightIRSensor));
   Serial.println();  // End of data set, for easier parsing on the Raspberry Pi
 
