@@ -24,7 +24,7 @@ void loop() {
   if (distance < thresholdDistance) {
     // Obstacle detected!
     // Begin scanning to find a clear path
-    int bestAngle = scanForBestPath();
+    int bestAngle = scanForClearPath();
     // Send angle to Raspberry Pi
     Serial.println(bestAngle);
   } else {
@@ -48,22 +48,19 @@ int measureDistance() {
   return distance;
 }
 
-// Function to scan at multiple angles and find the best direction
+// Function to scan at multiple angles and find clear path
 int scanForClearPath() {
   int angles[] = {-90, 0, 90};
-  int bestAngle = 0;
-  int maxDistance = 0;
 
   for (int i = 0; i < 3; i++) {
-    myServo.write(angles[i] + 90);  // Offset by 90 since servo operates 0-180
+    servo.write(angles[i] + 90);  // Offset by 90 since servo operates 0-180
     delay(500);                     // Wait for servo to reach position
 
     int distance = measureDistance();
-    if (distance > maxDistance) {
-      maxDistance = distance;
-      bestAngle = angles[i];
+    if (distance > thresholdDistance) {
+      return angles[i]; // Stop scanning once clear path is found
     }
   }
 
-  return bestAngle;  // Return the angle with the clearest path
+  return 0; // If no clear path is found, return 0
 }
