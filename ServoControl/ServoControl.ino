@@ -3,7 +3,7 @@
 // Initialize pins for trigger, echo, and servo
 int trigPin = 9;
 int echoPin = 10;
-int servoPin = 3;
+int servoPin = 6;
 
  // Create an instance of Servo class
 Servo servo;
